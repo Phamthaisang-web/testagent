@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS artifacts
+*.log
+.DS_Store
+Thumbs.db

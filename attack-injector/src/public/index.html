@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chaos Attack Injector 3.0 | Trung Tâm Phát Động Tấn Công &amp; Kiểm Thử Chịu Tải</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-box">
+        <span class="logo-icon">🎯</span>
+      </div>
+      <div>
+        <div class="logo-title-row">
+          <h1 class="logo-title">Chaos Attack Injector 3.0</h1>
+          <span class="badge-red-team">RED TEAM ENGINE</span>
+          <span class="badge-status" id="headerAttackStatus">TRẠNG THÁI: SẴN SÀNG</span>
+        </div>
+        <p class="logo-subtitle">Bộ công cụ phát động tấn công, tiêm lỗi &amp; tạo tải đa kịch bản nhắm vào Website Thương Mại NovaTech</p>
+      </div>
+    </div>
+
+    <!-- Target Selector in Header -->
+    <div class="header-right">
+      <div class="target-config-card">
+        <label class="target-label">Mục tiêu tấn công (Target URL):</label>
+        <div class="target-input-row">
+          <input type="text" id="targetUrlInput" value="http://ecommerce-store-service:8080" placeholder="http://ecommerce-store-service:8080">
+          <button type="button" class="btn btn-ping" id="btnPingTarget" title="Kiểm tra kết nối tới Website">
+            <span>Ping</span>
+          </button>
+        </div>
+        <div class="target-hint">Trong K8s: <code>http://ecommerce-store-service:8080</code> | Local: <code>http://localhost:30895</code></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Attack Progress Banner -->
+  <section class="attack-banner" id="attackBanner">
+    <div class="banner-left">
+      <span class="banner-icon" id="bannerIcon">🛡️</span>
+      <div>
+        <div class="banner-title" id="bannerTitle">Hệ thống tấn công đang ở chế độ chờ (Idle)</div>
+        <div class="banner-desc" id="bannerDesc">Chọn kịch bản bên dưới và nhấn "Phát Động Tấn Công" để bơm tải lỗi vào web thương mại.</div>
+      </div>
+    </div>
+    <div class="banner-actions">
+      <!-- Live Pod Controller Toolbar on Top Header -->
+      <div class="pod-scaler-toolbar" id="topPodScalerToolbar" title="Điều khiển số lượng bản sao Pod của ecommerce-store-app">
+        <span class="pod-scaler-label">☸️ Pods:</span>
+        <button type="button" class="btn-pod-scale-step" id="btnScaleDownTop" title="Giảm 1 Pod (Scale Down)">➖</button>
+        <span class="pod-scaler-count" id="topLivePodsBadge">-- Pods</span>
+        <button type="button" class="btn-pod-scale-step" id="btnScaleUpTop" title="Tăng 1 Pod (Scale Up)">➕</button>
+      </div>
+
+      <button class="btn btn-probe" id="btnSingleProbe">
+        <span>🧪 Bắn Thử 1 Request</span>
+      </button>
+      <button class="btn btn-clean" id="btnResetTargetMem" title="Xả sạch bộ nhớ rò rỉ trên Web Thương Mại">
+        <span>🧹 Xả RAM Target</span>
+      </button>
+      <button class="btn btn-reset-all" id="btnCleanAllData" title="Dọn dẹp sạch toàn bộ dữ liệu test cũ, đơn hàng rác MongoDB và reset số đo về 0">
+        <span>♻️ Dọn Dẹp Dữ Liệu Cũ</span>
+      </button>
+      <button class="btn btn-export" id="btnExportReport" title="Tải báo cáo kiểm thử JSON">
+        <span>📊 Xuất Báo Cáo</span>
+      </button>
+      <button class="btn btn-stop" id="btnStopAttack">
+        <span>🛑 DỪNG TẤN CÔNG NGAY</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Progress Bar (Visible during attack) -->
+  <section class="progress-box" id="progressBox" style="display: none;">
+    <div class="progress-header">
+      <div>
+        <span>ĐANG TẤN CÔNG: <strong id="activeAttackTitle">--</strong></span>
+        <span class="badge-ramp" id="activeRampText">Tăng dần dần</span>
+      </div>
+      <div class="countdown-text">
+        Thời gian còn lại: <strong id="countdownVal">00:30</strong>
+      </div>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+    </div>
+  </section>
+
+  <!-- Live Attack Statistics Grid -->
+  <section class="stats-grid">
+    <!-- Total Requests -->
+    <div class="stat-card">
+      <div class="stat-title">TỔNG REQUEST ĐÃ BẮN</div>
+      <div class="stat-val" id="valTotalRequests">0</div>
+      <div class="stat-footer">Tốc độ hiện tại: <strong id="valLiveRps">0.0 RPS</strong></div>
+    </div>
+
+    <!-- 5xx Errors Injected -->
+    <div class="stat-card card-err">
+      <div class="stat-title">LỖI 5XX GÂY RA TRÊN TARGET</div>
+      <div class="stat-val" id="valErrors5xx">0</div>
+      <div class="stat-footer">Tỷ lệ lỗi 5xx: <strong id="valRate5xx">0.0%</strong></div>
+    </div>
+
+    <!-- Target Latency Lag -->
+    <div class="stat-card card-latency">
+      <div class="stat-title">ĐỘ TRỄ TARGET ÉP LÊN</div>
+      <div class="stat-val" id="valTargetLatency">0 ms</div>
+      <div class="stat-footer">Phản hồi trung bình gần nhất</div>
+    </div>
+
+    <!-- 2xx Success -->
+    <div class="stat-card card-success">
+      <div class="stat-title">REQUEST THÀNH CÔNG (2XX)</div>
+      <div class="stat-val" id="valSuccess2xx">0</div>
+      <div class="stat-footer">Hệ thống mục tiêu còn trụ được</div>
+    </div>
+
+    <!-- Network / Timeout Fails -->
+    <div class="stat-card">
+      <div class="stat-title">TIMEOUT / NETWORK DROPS</div>
+      <div class="stat-val" id="valNetworkFails">0</div>
+      <div class="stat-footer">Kết nối bị ngắt do nghẽn mạng</div>
+    </div>
+  </section>
+
+  <!-- Main Tabs -->
+  <main class="main-content">
+    <div class="tab-buttons">
+      <button class="tab-btn active" data-tab="builder">
+        <span>⚙️ BỘ THIẾT LẬP TỰ DO &amp; TEST SCALE POD</span>
+      </button>
+      <button class="tab-btn" data-tab="presets">
+        <span>💥 KỊCH BẢN TẤN CÔNG MẪU 1-CLICK</span>
+      </button>
+      <button class="tab-btn" data-tab="deployment">
+        <span>🚀 THỬ NGHIỆM DEPLOYMENT &amp; ROLLBACK</span>
+      </button>
+      <button class="tab-btn" data-tab="actions">
+        <span>🧪 KIỂM THỬ TẤT CẢ ACTIONS (ALL-ACTION TEST SUITE)</span>
+      </button>
+      <button class="tab-btn" data-tab="console">
+        <span>📟 TERMINAL BẮN TẢI THỜI GIAN THỰC</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: CUSTOM ATTACK BUILDER -->
+    <div class="tab-panel active" id="tabBuilder">
+      <div class="builder-box">
+
+        <!-- BẢNG ĐIỀU KHIỂN CHUYÊN BIỆT: TEST SCALE POD (BÃO ĐẶT HÀNG HỢP LỆ - 0% LỖI 5XX) -->
+        <div class="scale-pod-builder-panel" id="scalePodBuilderPanel">
+          <div class="scale-panel-header">
+            <div class="scale-panel-title-group">
+              <div class="scale-panel-badge-row">
+                <span class="scale-panel-badge">⭐ DÀNH RIÊNG TEST SCALE POD &amp; AUTO-SCALING</span>
+                <span class="scale-tag-zero-err">🛡️ 0% LỖI 5XX (AN TOÀN TUYỆT ĐỐI)</span>
+              </div>
+              <h2 class="scale-panel-title">📦 Bảng Test: Bão Đặt Hàng Hợp Lệ (Scale Pod Stress Test - 0% Lỗi 5xx)</h2>
+              <p class="scale-panel-subtitle">
+                Bơm hàng ngàn đơn hàng thanh toán thật vào <code>/api/cart/checkout</code> với tỷ lệ thành công <strong>100% (HTTP 201 Created)</strong>. Kịch bản này tạo tải CPU và lưu lượng giao dịch thực tế để kiểm thử cơ chế <strong>Tự Động Co Giãn Bản Sao Pod (Scale Replicas / Scale Pods)</strong> của CapTone MAPE-K mà <strong>KHÔNG</strong> làm sập dịch vụ hay sinh lỗi 5xx.
+              </p>
+            </div>
+            <div class="scale-panel-kpis">
+              <div class="scale-kpi-item kpi-pods">
+                <span class="scale-kpi-num" id="scalePanelLiveReplicas">-- Pods</span>
+                <span class="scale-kpi-lbl" id="scalePanelReadyReplicas">Đang lấy...</span>
+              </div>
+              <div class="scale-kpi-item kpi-green">
+                <span class="scale-kpi-num">0%</span>
+                <span class="scale-kpi-lbl">Lỗi 5xx</span>
+              </div>
+              <div class="scale-kpi-item kpi-emerald">
+                <span class="scale-kpi-num">100%</span>
+                <span class="scale-kpi-lbl">HTTP 201 OK</span>
+              </div>
+              <div class="scale-kpi-item kpi-blue">
+                <span class="scale-kpi-num">Scale Pod</span>
+                <span class="scale-kpi-lbl">Mục Tiêu AI</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Parameters Grid inside Panel -->
+          <div class="scale-panel-body">
+            <div class="scale-ctrl-group">
+              <label class="scale-ctrl-label">⚡ Tốc độ bắn mục tiêu (RPS):</label>
+              <div class="scale-rps-pills" id="scalePanelRpsPills">
+                <button type="button" class="btn-scale-rps" data-rps="30">🟢 30 RPS (Nhẹ)</button>
+                <button type="button" class="btn-scale-rps active" data-rps="75">🟡 75 RPS (Vừa)</button>
+                <button type="button" class="btn-scale-rps" data-rps="150">🟠 150 RPS (Nặng)</button>
+                <button type="button" class="btn-scale-rps" data-rps="250">🔴 250 RPS (Cực đại)</button>
+              </div>
+              <div class="scale-slider-row">
+                <input type="range" id="scalePanelRpsSlider" min="10" max="350" step="5" value="75" class="range-slider">
+                <strong id="scalePanelRpsLabel" class="scale-val-badge">75 RPS</strong>
+              </div>
+            </div>
+
+            <div class="scale-ctrl-group">
+              <label class="scale-ctrl-label">⏱️ Thời gian kiểm thử:</label>
+              <div class="scale-dur-pills" id="scalePanelDurPills">
+                <button type="button" class="btn-scale-dur" data-dur="15">15 giây</button>
+                <button type="button" class="btn-scale-dur active" data-dur="30">30 giây</button>
+                <button type="button" class="btn-scale-dur" data-dur="60">60 giây</button>
+                <button type="button" class="btn-scale-dur" data-dur="120">120 giây</button>
+              </div>
+              <div class="scale-custom-dur">
+                <span>Số giây tùy chỉnh:</span>
+                <input type="number" id="scalePanelCustomDur" min="5" max="600" value="30" class="input-custom" style="width: 75px; text-align: center;">
+              </div>
+            </div>
+
+            <div class="scale-ctrl-group">
+              <label class="scale-ctrl-label">📈 Đường cong tăng tải (Ramp-up):</label>
+              <div class="scale-ramp-pills" id="scalePanelRampPills">
+                <button type="button" class="btn-scale-ramp active" data-ramp="instant">⚡ Lên đỉnh ngay</button>
+                <button type="button" class="btn-scale-ramp" data-ramp="fast">🚀 Tăng nhanh 10s</button>
+                <button type="button" class="btn-scale-ramp" data-ramp="gradual">📈 Tuyến tính đều</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interactive Live Pod Scaler Box -->
+          <div class="scale-pod-ctrl-box">
+            <div class="scale-pod-ctrl-header">
+              <div class="scale-pod-ctrl-title">
+                <span class="ctrl-icon">☸️</span>
+                <strong>Điều Khiển Số Lượng Pod Trực Tiếp (Manual K8s Pod Scaler):</strong>
+                <span class="ctrl-desc">Tăng / giảm bản sao Pod ngay trên K8s để kiểm thử phản ứng tự phục hồi của AI</span>
+              </div>
+              <div class="scale-pod-current-pill">
+                <span>Hiện tại:</span>
+                <strong id="scalePanelLiveReplicasPill">-- Pods</strong>
+                <span class="ready-tag" id="scalePanelLiveReadyTag">(-- Sẵn sàng)</span>
+              </div>
+            </div>
+            <div class="scale-pod-ctrl-btns">
+              <button type="button" class="btn-scale-action btn-scale-dec" id="btnScalePodMinus1" title="Giảm 1 Pod (Scale Down)">
+                <span>➖ Giảm 1 Pod (-1)</span>
+              </button>
+              <div class="scale-pod-quick-pills">
+                <button type="button" class="btn-scale-quick" data-replicas="1">1 Pod</button>
+                <button type="button" class="btn-scale-quick" data-replicas="2">2 Pods (Gốc)</button>
+                <button type="button" class="btn-scale-quick" data-replicas="4">4 Pods</button>
+                <button type="button" class="btn-scale-quick" data-replicas="6">6 Pods</button>
+                <button type="button" class="btn-scale-quick" data-replicas="8">8 Pods</button>
+              </div>
+              <button type="button" class="btn-scale-action btn-scale-inc" id="btnScalePodPlus1" title="Tăng 1 Pod (Scale Up)">
+                <span>➕ Tăng 1 Pod (+1)</span>
+              </button>
+            </div>
+            <div class="scale-pod-feedback" id="scalePodFeedback" style="display: none;"></div>
+          </div>
+
+          <!-- Action Buttons Bar inside Panel -->
+          <div class="scale-panel-actions">
+            <button class="btn btn-launch-scale-pod" id="btnLaunchScalePodDirect">
+              <span>🚀 PHÁT ĐỘNG TEST BÃO ĐẶT HÀNG (SCALE POD) — 0% LỖI 5XX</span>
+            </button>
+            <button class="btn btn-stop-scale-pod" id="btnStopScalePodDirect">
+              <span>🛑 DỪNG TEST</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1. Attack Vector Selection -->
+        <div class="form-section">
+          <h3 class="section-title"><span class="step-num">1</span> Lựa Chọn Loại Hình Tấn Công &amp; Kiểm Thử (Attack Vector)</h3>
+          <div class="attack-vector-grid">
+            
+            <label class="vector-card vector-scale-card active">
+              <input type="radio" name="attackType" value="legit_order_surge" checked>
+              <div class="vector-icon">📦</div>
+              <div class="vector-badge-pill">⭐ SCALE POD TEST (0% 5XX)</div>
+              <h4>Bão Đặt Hàng Hợp Lệ (Scale Pod)</h4>
+              <p>Bơm hàng ngàn đơn hàng hợp lệ thành công 100% (HTTP 201), tăng vọt lưu lượng RPS &amp; CPU để kích hoạt Scale Pod mà KHÔNG sinh lỗi 5xx.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/cart/checkout (0% 5xx)</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="http_flood">
+              <div class="vector-icon">🌊</div>
+              <h4>HTTP Flood (DDoS)</h4>
+              <p>Bắn hàng loạt request dồn dập vào danh mục sản phẩm, vắt kiệt băng thông và tài nguyên CPU/RAM.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/products</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="resource_exhaustion">
+              <div class="vector-icon">🔥</div>
+              <h4>Thiêu Đốt CPU (Heavy Search)</h4>
+              <p>Gửi các truy vấn thuật toán phức tạp ép máy chủ tính toán căn bậc hai &amp; số nguyên tố, đẩy CPU lên 95%.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/search/heavy</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="flash_sale_surge">
+              <div class="vector-icon">🛒</div>
+              <h4>Cơn Bão Đặt Hàng (Checkout Avalanche)</h4>
+              <p>Tấn công đồng thời vào endpoint thanh toán, làm tràn hàng đợi (queue saturation) kích thích sinh lỗi 503.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/cart/checkout</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="malformed_injection">
+              <div class="vector-icon">⚠️</div>
+              <h4>Tiêm Payload Lỗi (Malformed Injection)</h4>
+              <p>Gửi dữ liệu JSON hỏng và trường bất hợp lệ để kích hoạt lỗi xử lý nghiêm trọng và sinh mã lỗi 500.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/cart/checkout</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="mixed_chaos">
+              <div class="vector-icon">🌪️</div>
+              <h4>Hỗn Hợp Đa Tấn Công (Mixed Chaos)</h4>
+              <p>Phối hợp ngẫu nhiên cả tính toán nặng, đặt hàng dồn dập và truy vấn danh mục cùng lúc.</p>
+              <span class="target-tag">Mục tiêu: <code>Đa Endpoint</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="memory_exhaustion">
+              <div class="vector-icon">🧠</div>
+              <h4>Rò Rỉ Bộ Nhớ (RAM Bloat / OOM)</h4>
+              <p>Bơm mảng buffer vào heap RAM liên tục để ép container chạm ngưỡng OOM và thử thách AI tự lành.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/chaos/leak-memory</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="slow_loris_latency">
+              <div class="vector-icon">⏳</div>
+              <h4>Ép Độ Trễ Cao (High Latency Lag)</h4>
+              <p>Chèn độ trễ phản hồi từ 1.5s - 3s mô phỏng I/O bottleneck, kích hoạt cảnh báo HIGH_LATENCY của GRU.</p>
+              <span class="target-tag">Mục tiêu: <code>/api/chaos/latency</code></span>
+            </label>
+
+            <label class="vector-card">
+              <input type="radio" name="attackType" value="pod_crash_panic">
+              <div class="vector-icon">💥</div>
+              <h4>Gây Chết Pod (Container Crash / Panic)</h4>
+              <p>Gửi lệnh ép container thoát tiến trình (Exit 1), làm tăng số lần khởi động lại (pod_restart_count).</p>
+              <span class="target-tag">Mục tiêu: <code>/api/chaos/error?crash=true</code></span>
+            </label>
+
+          </div>
+        </div>
+
+        <!-- 2. Rate, Duration & Ramp Profile -->
+        <div class="form-section">
+          <h3 class="section-title"><span class="step-num">2</span> Cấu Hình Tốc Độ, Thời Gian &amp; Tốc Độ Tăng Tải</h3>
+          
+          <div class="config-grid">
+            <!-- RPS Slider -->
+            <div class="config-col">
+              <div class="slider-row">
+                <label>Tốc độ bắn mục tiêu (Target RPS):</label>
+                <strong class="slider-val" id="valRpsLabel">50 RPS</strong>
+              </div>
+              <input type="range" id="rangeRps" min="10" max="300" step="10" value="50" class="range-slider">
+              <div class="quick-pills">
+                <button type="button" class="btn-quick-rps" data-rps="30">30 RPS</button>
+                <button type="button" class="btn-quick-rps" data-rps="75">75 RPS</button>
+                <button type="button" class="btn-quick-rps" data-rps="150">150 RPS</button>
+                <button type="button" class="btn-quick-rps" data-rps="250">250 RPS</button>
+              </div>
+            </div>
+
+            <!-- Intensity Level -->
+            <div class="config-col">
+              <label>Mức độ cường độ (Intensity Level):</label>
+              <div class="intensity-pills" id="builderIntensityPills">
+                <button type="button" class="btn-intensity" data-level="low">🟢 Nhẹ</button>
+                <button type="button" class="btn-intensity active" data-level="medium">🟡 Vừa</button>
+                <button type="button" class="btn-intensity" data-level="high">🟠 Nặng</button>
+                <button type="button" class="btn-intensity" data-level="extreme">🔴 Cực Đại</button>
+              </div>
+              <div class="target-hint" id="builderIntensityHint" style="margin-top: 6px; font-size: 0.6875rem;">
+                Mức Vừa (Medium): 65 RPS, RAM +25MB, Latency +1500ms
+              </div>
+            </div>
+
+            <!-- Duration -->
+            <div class="config-col">
+              <label>Thời lượng tấn công (Giây):</label>
+              <div class="duration-pills">
+                <button type="button" class="btn-dur" data-dur="15">15s</button>
+                <button type="button" class="btn-dur active" data-dur="30">30s</button>
+                <button type="button" class="btn-dur" data-dur="60">60s</button>
+                <button type="button" class="btn-dur" data-dur="120">120s</button>
+              </div>
+              <input type="number" id="inputDurationCustom" value="30" min="5" max="600" class="input-custom">
+            </div>
+
+            <!-- Ramp Profile -->
+            <div class="config-col">
+              <label>Đường cong tăng tốc (Ramp Profile):</label>
+              <div class="ramp-list">
+                <label class="ramp-opt"><input type="radio" name="rampMode" value="instant"> ⚡ Tăng đột biến (Lên đỉnh ngay)</label>
+                <label class="ramp-opt"><input type="radio" name="rampMode" value="fast"> 🚀 Tăng nhanh (10 giây lên đỉnh)</label>
+                <label class="ramp-opt active"><input type="radio" name="rampMode" value="gradual" checked> 📈 Tăng dần dần (Tuyến tính suốt test)</label>
+                <label class="ramp-opt"><input type="radio" name="rampMode" value="wave"> 🌊 Sóng dồn dập (Dao động hình sin)</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Launch Action -->
+        <div class="launch-bar">
+          <button class="btn btn-launch-primary" id="btnLaunchAttack">
+            <span>🚀 PHÁT ĐỘNG TẤN CÔNG VÀO WEB THƯƠNG MẠI</span>
+          </button>
+          <button class="btn btn-stop-secondary" id="btnHaltAttack">
+            <span>🛑 DỪNG KHẨN CẤP</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: PRESETS -->
+    <div class="tab-panel" id="tabPresets">
+      <div class="presets-grid">
+        <!-- Preset Đặc Biệt: Scale Pod Legitimate Order Surge -->
+        <div class="preset-box preset-featured-scale">
+          <div class="preset-badge-tag">⭐ DÀNH RIÊNG TEST SCALE POD</div>
+          <div class="preset-icon">📦</div>
+          <h4>Bão Đặt Hàng Hợp Lệ (Scale Pod Stress Test - 0% Lỗi 5xx)</h4>
+          <p>Gửi liên tục các đơn đặt hàng hợp lệ vào <code>/api/cart/checkout</code> với tỷ lệ thành công 100% (HTTP 200/201). Làm tăng vọt CPU và lưu lượng người dùng thật để kiểm thử tính năng <strong>Điều chỉnh số lượng bản sao Pod (Scale Replicas / Scale Pods)</strong> của CapTone MAPE-K mà không làm phát sinh lỗi 5xx.</p>
+          <div class="preset-tags">
+            <span style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981; font-weight: 700;">100% HTTP 200/201</span>
+            <span>Lưu Lượng Cao</span>
+            <span>Kích Hoạt Scale Pod</span>
+            <span>0% Lỗi 5xx</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="scale_order_rush">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60" class="active">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ (RPS):</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ (30 RPS)</button>
+                <button type="button" data-level="medium" class="int-med active">🟡 Vừa (75 RPS)</button>
+                <button type="button" data-level="high" class="int-high">🟠 Nặng (150 RPS)</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại (250 RPS)</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset btn-preset-scale" data-preset="scale_order_rush" style="background: linear-gradient(135deg, #059669, #10B981); color: #FFFFFF; font-weight: 800; border: none; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);">
+            🚀 Phát Động Test Đặt Hàng (Scale Pod)
+          </button>
+        </div>
+
+        <!-- Preset 1 -->
+        <div class="preset-box">
+          <div class="preset-icon">🌊</div>
+          <h4>DDoS Tê Liệt Hệ Thống (HTTP Flood 150 RPS)</h4>
+          <p>Tấn công dồn dập liên tục 150 request/giây làm cạn kiệt tài nguyên mạng và băng thông của Pod thương mại.</p>
+          <div class="preset-tags">
+            <span>150 RPS</span>
+            <span>45 Giây</span>
+            <span>Tăng Nhanh</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="ddos_flood">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high active">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="ddos_flood">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 2 -->
+        <div class="preset-box">
+          <div class="preset-icon">🔥</div>
+          <h4>Quá Tải CPU Khủng Khiếp (CPU Burner 100 RPS)</h4>
+          <p>Bơm liên tục các truy vấn tìm kiếm phức tạp ép CPU của container web chạm trần 95% - 100%, kích hoạt Self-Healing HPA.</p>
+          <div class="preset-tags">
+            <span>Heavy Search</span>
+            <span>CPU 95%</span>
+            <span>60 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="cpu_burner">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60" class="active">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med active">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="cpu_burner">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 3 -->
+        <div class="preset-box">
+          <div class="preset-icon">🛒</div>
+          <h4>Cơn Bão Flash Sale (Checkout Avalanche)</h4>
+          <p>Hàng ngàn đơn hàng giả lập gửi đồng thời vào `/api/cart/checkout`, làm nghẽn hàng đợi và sinh mã lỗi 503.</p>
+          <div class="preset-tags">
+            <span>Checkout Flood</span>
+            <span>HTTP 503</span>
+            <span>45 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="checkout_rush">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med active">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="checkout_rush">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 4 -->
+        <div class="preset-box">
+          <div class="preset-icon">⚠️</div>
+          <h4>Bão Lỗi 500 (Exception Injection)</h4>
+          <p>Bắn dữ liệu payload lỗi làm crash logic xử lý đơn hàng, ép tỷ lệ lỗi 5xx vượt ngưỡng báo động của mạng GRU.</p>
+          <div class="preset-tags">
+            <span>HTTP 500</span>
+            <span>60% Lỗi</span>
+            <span>30 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="error_storm">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30" class="active">30s</button>
+                <button type="button" data-dur="60">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high active">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="error_storm">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 5: Memory Leak Bomb -->
+        <div class="preset-box">
+          <div class="preset-icon">🧠</div>
+          <h4>Bẫy Rò Rỉ Bộ Nhớ (RAM Leak Bomb)</h4>
+          <p>Bơm liên tục 25MB mỗi nhịp vào container, đẩy RAM lên 90% để thử thách khả năng dự báo OOM của AI.</p>
+          <div class="preset-tags">
+            <span>OOM Stress</span>
+            <span>+25MB/req</span>
+            <span>45 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="memory_leak_bomb">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med active">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="memory_leak_bomb">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 6: Latency Paralysis -->
+        <div class="preset-box">
+          <div class="preset-icon">⏳</div>
+          <h4>Sóng Trễ Tê Liệt (Latency Avalanche)</h4>
+          <p>Ép thời gian phản hồi chạm mốc 2500ms, làm nghẽn toàn bộ luồng giao dịch của khách hàng.</p>
+          <div class="preset-tags">
+            <span>2500ms Lag</span>
+            <span>Nghẽn I/O</span>
+            <span>30 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="latency_paralysis">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30" class="active">30s</button>
+                <button type="button" data-dur="60">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high active">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="latency_paralysis">Phát Động Kịch Bản</button>
+        </div>
+
+        <!-- Preset 7: Full Chaos Storm -->
+        <div class="preset-box">
+          <div class="preset-icon">🌪️</div>
+          <h4>Thảm Họa Đa Lỗi (Full Spectrum Storm)</h4>
+          <p>Phối hợp ngẫu nhiên cả CPU burn, checkout flood, 500 error và rò rỉ RAM để kiểm tra toàn diện Self-Healing.</p>
+          <div class="preset-tags">
+            <span>Đa Lỗi Cùng Lúc</span>
+            <span>80 RPS</span>
+            <span>60 Giây</span>
+          </div>
+          
+          <!-- Custom Duration & Intensity Controls -->
+          <div class="preset-controls-box" data-preset-target="full_chaos_storm">
+            <div class="preset-ctrl-row">
+              <label>⏱️ Thời gian:</label>
+              <div class="mini-pills dur-pills">
+                <button type="button" data-dur="15">15s</button>
+                <button type="button" data-dur="30">30s</button>
+                <button type="button" data-dur="60" class="active">60s</button>
+                <button type="button" data-dur="120">120s</button>
+              </div>
+            </div>
+            <div class="preset-ctrl-row">
+              <label>🔥 Mức độ:</label>
+              <div class="mini-pills int-pills">
+                <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+                <button type="button" data-level="medium" class="int-med">🟡 Vừa</button>
+                <button type="button" data-level="high" class="int-high">🟠 Nặng</button>
+                <button type="button" data-level="extreme" class="int-ext active">🔴 Cực Đại</button>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-preset" data-preset="full_chaos_storm">Phát Động Kịch Bản</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DEPLOYMENT ROLLOUT & FAULT RESILIENCE LAB -->
+    <div class="tab-panel" id="tabDeployment">
+      <!-- Live Deployment Summary Card -->
+      <div class="deployment-header-card">
+        <div class="dep-meta-row">
+          <div class="dep-meta-left">
+            <span class="dep-pill-label">DEPLOYMENT:</span>
+            <strong class="dep-pill-val" id="depNameVal">ecommerce-store-app</strong>
+            <span class="dep-pill-sep">&bull;</span>
+            <span class="dep-pill-label">NAMESPACE:</span>
+            <span class="dep-pill-val">test-lab</span>
+            <span class="dep-pill-sep">&bull;</span>
+            <span class="dep-pill-label">STRATEGY:</span>
+            <span class="dep-pill-val">RollingUpdate</span>
+          </div>
+          <div class="dep-meta-right">
+            <button class="btn btn-sm btn-dep-refresh" id="btnRefreshDepStatus">🔄 Làm Mới Trạng Thái</button>
+            <button class="btn btn-sm btn-dep-verify" id="btnVerifyDepTraffic">🧪 Bắn 10 Request Test Trạng Thái</button>
+          </div>
+        </div>
+
+        <div class="dep-status-grid">
+          <div class="dep-stat-item">
+            <div class="dep-stat-title">PHIÊN BẢN HIỆN TẠI</div>
+            <div class="dep-stat-tag-row">
+              <span class="badge-version" id="depVersionBadge">v1.0.0-stable</span>
+            </div>
+            <div class="dep-stat-sub" id="depImageTag">selfheal-ecommerce-store:1.0.0</div>
+          </div>
+
+          <div class="dep-stat-item">
+            <div class="dep-stat-title">SỐ POD SẴN SÀNG (REPLICAS)</div>
+            <div class="dep-stat-val" id="depReplicasVal">2 / 2 Ready</div>
+            <div class="dep-stat-sub" id="depReplicasSub">0 Pods cập nhật dở dang</div>
+          </div>
+
+          <div class="dep-stat-item">
+            <div class="dep-stat-title">TÌNH TRẠNG ỨNG DỤNG (LIVE PROBE)</div>
+            <div class="dep-stat-tag-row">
+              <span class="badge-health-ok" id="depHealthBadge">🟢 SẴN SÀNG (HTTP 200)</span>
+            </div>
+            <div class="dep-stat-sub" id="depHealthSub">Liveness &amp; Readiness Probe vượt qua 100%</div>
+          </div>
+
+          <div class="dep-stat-item">
+            <div class="dep-stat-title">KẾT QUẢ TEST TẢI THỰC TẾ</div>
+            <div class="dep-stat-val" id="depProbeResultVal">Chưa test</div>
+            <div class="dep-stat-sub" id="depProbeResultSub">Nhấn "Bắn 10 Request Test" để kiểm tra</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deployment Scenarios Grid (5 Cards) -->
+      <h3 class="dep-section-heading">🎯 Các Kịch Bản Kiểm Thử Deployment (Thành Công &amp; Lỗi Dịch Vụ)</h3>
+      <div class="dep-scenarios-grid">
+
+        <!-- Scenario 1: Clean Rollout -->
+        <div class="scenario-card card-clean-rollout">
+          <div class="scenario-header">
+            <div class="scenario-badge badge-green">TRIỂN KHAI THÀNH CÔNG</div>
+            <span class="scenario-version">v1.2.0-stable</span>
+          </div>
+          <h4>🚀 1. Triển Khai Bản Mới Thành Công (Clean Rollout)</h4>
+          <p class="scenario-desc">Nâng cấp phiên bản lên <code>v1.2.0-stable</code>. K8s tạo ReplicaSet mới, kéo image, kiểm tra liveness &amp; readiness probes 100% đạt chuẩn, sau đó thu hẹp bản cũ không gián đoạn dịch vụ (Zero-Downtime).</p>
+          <div class="scenario-signals">
+            <div class="signal-item"><strong>K8s Event:</strong> ScalingReplicaSet, Pulled, Started</div>
+            <div class="signal-item"><strong>Chỉ số 5xx:</strong> 0% (Hoàn toàn khỏe mạnh)</div>
+            <div class="signal-item"><strong>Trạng thái AI:</strong> NORMAL (Không cảnh báo)</div>
+          </div>
+          <button class="btn btn-scenario btn-run-clean" id="btnRunCleanRollout">
+            <span>🚀 Triển Khai v1.2.0-stable</span>
+          </button>
+        </div>
+
+        <!-- Scenario 2: 5xx Regression -->
+        <div class="scenario-card card-regression-5xx">
+          <div class="scenario-header">
+            <div class="scenario-badge badge-amber">LỖI RUNTIME 500</div>
+            <span class="scenario-version">v1.2.1-faulty</span>
+          </div>
+          <h4>⚠️ 2. Lỗi Hồi Quy Logic Nghiệp Vụ (5xx Regression)</h4>
+          <p class="scenario-desc">Triển khai phiên bản <code>v1.2.1-faulty</code>. Pods vẫn Running nhưng tất cả request nghiệp vụ (sản phẩm, thanh toán) gặp ngoại lệ và trả về <strong>HTTP 500</strong>.</p>
+          <div class="scenario-signals">
+            <div class="signal-item"><strong>Tỷ lệ 5xx:</strong> Bùng phát lên 100%</div>
+            <div class="signal-item"><strong>Chẩn đoán AI:</strong> RCA kết luận <code>deployment_failure</code></div>
+            <div class="signal-item"><strong>Tự phục hồi:</strong> Đề xuất <code>ROLLBACK_DEPLOYMENT</code> trong Approvals</div>
+          </div>
+          <button class="btn btn-scenario btn-run-regression" id="btnRun5xxRegression">
+            <span>⚠️ Triển Khai Bản Lỗi 5xx (Regression)</span>
+          </button>
+        </div>
+
+        <!-- Scenario 3: CrashLoopBackOff -->
+        <div class="scenario-card card-crashloop">
+          <div class="scenario-header">
+            <div class="scenario-badge badge-red">SẬP CONTAINER (EXIT 1)</div>
+            <span class="scenario-version">v1.2.2-crash</span>
+          </div>
+          <h4>💥 3. Sập Khởi Động Tiến Trình (CrashLoopBackOff)</h4>
+          <p class="scenario-desc">Triển khai phiên bản có lỗi nghiêm trọng khi nạp (mã lỗi ExitCode 1 sau 1.2s). Kubelet liên tục khởi động lại container, Pod rơi vào trạng thái <strong>CrashLoopBackOff</strong>.</p>
+          <div class="scenario-signals">
+            <div class="signal-item"><strong>K8s Event:</strong> BackOff, Failed, Killing</div>
+            <div class="signal-item"><strong>Chỉ số Pod:</strong> restart_count tăng liên tục</div>
+            <div class="signal-item"><strong>Trạng thái Rollout:</strong> Tạm dừng (Pods không Ready)</div>
+          </div>
+          <button class="btn btn-scenario btn-run-crashloop" id="btnRunCrashLoop">
+            <span>💥 Triển Khai Bản Sập (CrashLoopBackOff)</span>
+          </button>
+        </div>
+
+        <!-- Scenario 4: Bad Image Tag -->
+        <div class="scenario-card card-badimage">
+          <div class="scenario-header">
+            <div class="scenario-badge badge-purple">LỖI KÉO IMAGE</div>
+            <span class="scenario-version">v9.9.9-corrupted</span>
+          </div>
+          <h4>🛑 4. Tag Image Không Tồn Tại (ImagePullBackOff)</h4>
+          <p class="scenario-desc">Triển khai deployment trỏ tới tag <code>selfheal-ecommerce-store:v9.9.9-corrupted</code> không có trong cluster. Kubelet không thể pull image và kẹt tại <strong>ImagePullBackOff</strong>.</p>
+          <div class="scenario-signals">
+            <div class="signal-item"><strong>K8s Event:</strong> Failed to pull image, ErrImagePull</div>
+            <div class="signal-item"><strong>Bảo vệ hệ thống:</strong> ReplicaSet cũ vẫn giữ nguyên</div>
+            <div class="signal-item"><strong>Tác động:</strong> Không gây downtime phiên bản hiện tại</div>
+          </div>
+          <button class="btn btn-scenario btn-run-badimage" id="btnRunBadImage">
+            <span>🛑 Triển Khai Tag Hỏng (ImagePullBackOff)</span>
+          </button>
+        </div>
+
+        <!-- Scenario 5: Safe Rollback -->
+        <div class="scenario-card card-rollback">
+          <div class="scenario-header">
+            <div class="scenario-badge badge-blue">KHÔI PHỤC AN TOÀN</div>
+            <span class="scenario-version">v1.0.0-stable</span>
+          </div>
+          <h4>🔄 5. Hoàn Nguyên Về Phiên Bản Ổn Định (Rollback)</h4>
+          <p class="scenario-desc">Khôi phục deployment về bản chuẩn <code>v1.0.0-stable</code>, xóa sạch cờ giả lập lỗi và rò rỉ RAM. K8s khởi tạo lại ReplicaSet lành mạnh và tiêu hủy các Pods lỗi.</p>
+          <div class="scenario-signals">
+            <div class="signal-item"><strong>K8s Action:</strong> Rollback to revision an toàn</div>
+            <div class="signal-item"><strong>Chỉ số phục hồi:</strong> 100% 200 OK, latency &lt; 50ms</div>
+            <div class="signal-item"><strong>Trạng thái AI:</strong> Phục hồi về NORMAL</div>
+          </div>
+          <button class="btn btn-scenario btn-run-rollback" id="btnRunRollback">
+            <span>🔄 Hoàn Nguyên Phiên Bản Ổn Định (Rollback)</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Live Pods & K8s Events Double Column -->
+      <div class="dep-details-grid">
+        <!-- Pods Table -->
+        <div class="dep-detail-card">
+          <div class="detail-card-header">
+            <h4>📦 Danh Sách Pods Hiện Tại Trong Deployment</h4>
+            <span class="badge-mini" id="depPodsCountBadge">2 Pods</span>
+          </div>
+          <div class="dep-table-wrapper">
+            <table class="dep-table" id="depPodsTable">
+              <thead>
+                <tr>
+                  <th>Tên Pod</th>
+                  <th>Trạng Thái</th>
+                  <th>Ready</th>
+                  <th>Restarts</th>
+                  <th>Địa Chỉ IP</th>
+                </tr>
+              </thead>
+              <tbody id="depPodsTableBody">
+                <tr><td colspan="5" class="text-center text-muted">Đang tải danh sách Pods từ K8s...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- K8s Events Table -->
+        <div class="dep-detail-card">
+          <div class="detail-card-header">
+            <h4>⚡ Sự Kiện Kubernetes Thời Gian Thực (K8s Events)</h4>
+            <span class="badge-mini" id="depEventsCountBadge">15 Sự Kiện</span>
+          </div>
+          <div class="dep-table-wrapper">
+            <table class="dep-table" id="depEventsTable">
+              <thead>
+                <tr>
+                  <th>Loại</th>
+                  <th>Lý Do</th>
+                  <th>Đối Tượng</th>
+                  <th>Nội Dung Sự Kiện</th>
+                </tr>
+              </thead>
+              <tbody id="depEventsTableBody">
+                <tr><td colspan="4" class="text-center text-muted">Đang lấy sự kiện từ Kubernetes API...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB 4: ALL ACTIONS TEST SUITE (KIỂM THỬ TOÀN DIỆN MỌI ACTION) -->
+    <div class="tab-panel" id="tabActions">
+      <!-- Suite Header & Global Configuration -->
+      <div class="suite-header-card">
+        <div class="suite-header-top">
+          <div class="suite-title-area">
+            <h3>🧪 Trung Tâm Kiểm Thử Toàn Diện Mọi Action (All-Action Test Suite)</h3>
+            <p>Hỗ trợ tùy chọn <strong>Thời gian (Duration)</strong> và <strong>Mức độ (Intensity)</strong> cho từng hành động riêng biệt hoặc chạy tự động toàn bộ 17 kịch bản.</p>
+          </div>
+          <button class="btn btn-suite-run-all" id="btnRunAllSuite">
+            <span>⚡ CHẠY TỰ ĐỘNG TOÀN BỘ 17 ACTIONS</span>
+          </button>
+        </div>
+
+        <div class="suite-controls-bar">
+          <div class="suite-ctrl-group">
+            <label>⏱️ Thời gian mặc định:</label>
+            <div class="mini-pills" id="suiteGlobalDurPills">
+              <button type="button" data-dur="5">5s</button>
+              <button type="button" data-dur="10" class="active">10s</button>
+              <button type="button" data-dur="20">20s</button>
+              <button type="button" data-dur="30">30s</button>
+            </div>
+          </div>
+
+          <div class="suite-ctrl-group">
+            <label>🔥 Mức độ mặc định:</label>
+            <div class="mini-pills" id="suiteGlobalIntPills">
+              <button type="button" data-level="low" class="int-low">🟢 Nhẹ</button>
+              <button type="button" data-level="medium" class="int-med active">🟡 Vừa</button>
+              <button type="button" data-level="high" class="int-high">🟠 Nặng</button>
+              <button type="button" data-level="extreme" class="int-ext">🔴 Cực Đại</button>
+            </div>
+          </div>
+
+          <div class="suite-ctrl-group" style="margin-left: auto;">
+            <button class="btn btn-sm" id="btnResetSuiteStatus">🔄 Đặt Lại Trạng Thái Test</button>
+          </div>
+        </div>
+
+        <!-- Suite Live Counters Panel -->
+        <div class="suite-summary-panel">
+          <div class="suite-sum-card">
+            <div class="suite-sum-title">TỔNG ACTIONS</div>
+            <div class="suite-sum-val val-total" id="suiteTotalActions">17</div>
+          </div>
+          <div class="suite-sum-card">
+            <div class="suite-sum-title">HOÀN TẤT (PASS)</div>
+            <div class="suite-sum-val val-pass" id="suitePassedCount">0</div>
+          </div>
+          <div class="suite-sum-card">
+            <div class="suite-sum-title">CẢNH BÁO (WARN)</div>
+            <div class="suite-sum-val val-warn" id="suiteWarnedCount">0</div>
+          </div>
+          <div class="suite-sum-card">
+            <div class="suite-sum-title">THẤT BẠI (FAIL)</div>
+            <div class="suite-sum-val val-fail" id="suiteFailedCount">0</div>
+          </div>
+          <div class="suite-sum-card">
+            <div class="suite-sum-title">TỔNG REQUEST TEST</div>
+            <div class="suite-sum-val" id="suiteTotalRequestsSent" style="color: #A78BFA;">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container dynamically filled or static cards for 17 actions -->
+      <div id="actionsCatalogContainer">
+        <!-- Will be loaded dynamically from /api/actions/catalog or initial fallback -->
+        <div class="text-center text-muted" style="padding: 40px;">⏳ Đang nạp danh mục 17 Actions từ máy chủ...</div>
+      </div>
+    </div>
+
+    <!-- TAB 5: TERMINAL LIVE LOG -->
+    <div class="tab-panel" id="tabConsole">
+      <div class="terminal-box">
+        <div class="terminal-bar">
+          <div class="terminal-dots">
+            <span class="dot dot-r"></span>
+            <span class="dot dot-y"></span>
+            <span class="dot dot-g"></span>
+          </div>
+          <span class="terminal-title">LIVE ATTACK STREAM CONSOLE</span>
+          <button class="btn btn-sm" id="btnClearLogs">Xóa Nhật Ký</button>
+        </div>
+        <div class="terminal-body" id="terminalLogs">
+          <div class="log-line text-muted">[SẴN SÀNG] Động cơ Red-Team Attack Injector đã kết nối. Nhấn "Phát Động Tấn Công" để bắt đầu quan sát dòng request...</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <div>Chaos Attack Injector 3.0 &bull; Kubernetes Self-Healing Stress Testbed &bull; Target: <span id="footerTarget">--</span></div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

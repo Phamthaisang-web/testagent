@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-rs-init
+  namespace: test-lab
+  labels:
+    app: mongodb-init
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: mongodb-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mongo-init
+          image: mongo:7.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - "bash"
+            - "-c"
+            - |
+              set -e
+              echo ">>> [MongoDB RS Init] Waiting for all 3 MongoDB pods to become healthy..."
+              
+              for host in mongodb-0 mongodb-1; do
+                fqdn="${host}.mongodb-service.test-lab.svc.cluster.local:27017"
+                echo "Checking $fqdn..."
+                until mongosh --host "$fqdn" --eval "db.adminCommand('ping')" --quiet > /dev/null 2>&1; do
+                  echo "Waiting for $fqdn..."
+                  sleep 2
+                done
+                echo "$fqdn is READY!"
+              done
+
+              echo ">>> [MongoDB RS Init] Checking if Replica Set 'rs0' has already been initiated..."
+              STATUS_OK=$(mongosh --host mongodb-0.mongodb-service.test-lab.svc.cluster.local:27017 --quiet --eval "rs.status().ok" 2>/dev/null || echo "0")
+
+              if [ "$STATUS_OK" != "1" ]; then
+                echo ">>> [MongoDB RS Init] Initiating Replica Set 'rs0' (2 Members: Master & Replace)..."
+                mongosh --host mongodb-0.mongodb-service.test-lab.svc.cluster.local:27017 --eval '
+                  rs.initiate({
+                    _id: "rs0",
+                    members: [
+                      { _id: 0, host: "mongodb-0.mongodb-service.test-lab.svc.cluster.local:27017", priority: 2 },
+                      { _id: 1, host: "mongodb-1.mongodb-service.test-lab.svc.cluster.local:27017", priority: 1 }
+                    ]
+                  })
+                '
+                echo ">>> [MongoDB RS Init] Replica Set 'rs0' initiated successfully!"
+              else
+                echo ">>> [MongoDB RS Init] Replica Set 'rs0' already exists and is active."
+              fi
+
+              echo ">>> [MongoDB RS Init] Waiting for Primary election to settle..."
+              sleep 5
+              mongosh --host mongodb-service.test-lab.svc.cluster.local:27017 --eval "rs.status().members.forEach(m => print(m.name + ' => ' + m.stateStr))"
+              echo ">>> [MongoDB RS Init] ALL DONE!"

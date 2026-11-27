@@ -1,0 +1,17 @@
+{
+  "name": "novatech-ecommerce-app",
+  "version": "1.0.0",
+  "description": "Enterprise E-Commerce Storefront for Kubernetes Self-Healing Testing",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mongodb": "^7.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,26 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-tester-role
+  namespace: test-lab
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "events"]
+  verbs: ["get", "list", "watch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-tester-rolebinding
+  namespace: test-lab
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: test-lab
+roleRef:
+  kind: Role
+  name: deployment-tester-role
+  apiGroup: rbac.authorization.k8s.io
